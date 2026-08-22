@@ -36,6 +36,7 @@ import { TagsInput } from "@/components/ui/tags-input";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { createColumnHelper, useTable } from "@/lib/tanstack-table";
 import { pluralize } from "@/utils";
+import { DeploymentsFilterPresetsBar } from "../deployments-filter-presets-bar";
 import { ActionsCell, ActivityCell } from "./cells";
 
 export type DeploymentsDataTableProps = {
@@ -285,6 +286,15 @@ export const DeploymentsDataTable = ({
 					</Select>
 				</div>
 			</div>
+
+			<DeploymentsFilterPresetsBar
+				columnFilters={columnFilters}
+				sort={sort}
+				onColumnFiltersChange={onColumnFiltersChange}
+				onSortChange={onSortChange}
+				onClearFilters={onClearFilters}
+				className="pb-3"
+			/>
 
 			<DeleteConfirmationDialog {...deleteConfirmationDialogState} />
 			{showFilteredEmptyState ? (
