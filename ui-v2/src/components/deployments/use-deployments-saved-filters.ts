@@ -55,6 +55,10 @@ export type UseDeploymentsSavedFiltersReturn = {
 	saveFilter: (
 		filterCreate: SavedDeploymentFilterCreate,
 	) => SavedDeploymentFilter;
+	updateFilter: (
+		filterId: string,
+		updates: Partial<SavedDeploymentFilterCreate>,
+	) => void;
 	deleteFilter: (filterId: string) => void;
 	findMatchingFilter: (
 		filters: DeploymentSavedFilterValues,
@@ -86,6 +90,34 @@ export function useDeploymentsSavedFilters(): UseDeploymentsSavedFiltersReturn {
 		[setSavedFilters],
 	);
 
+	const updateFilter = useCallback(
+		(filterId: string, updates: Partial<SavedDeploymentFilterCreate>): void => {
+			setSavedFilters((prev) =>
+				prev.map((f) =>
+					f.id === filterId
+						? {
+								...f,
+								...(updates.name !== undefined && {
+									name: updates.name.trim(),
+								}),
+								...(updates.filters !== undefined && {
+									filters: {
+										flowOrDeploymentName:
+											updates.filters.flowOrDeploymentName?.trim() || undefined,
+										tags: updates.filters.tags?.length
+											? updates.filters.tags
+											: undefined,
+										sort: updates.filters.sort,
+									},
+								}),
+							}
+						: f,
+				),
+			);
+		},
+		[setSavedFilters],
+	);
+
 	const deleteFilter = useCallback(
 		(filterId: string): void => {
 			setSavedFilters((prev) => prev.filter((f) => f.id !== filterId));
@@ -107,6 +139,7 @@ export function useDeploymentsSavedFilters(): UseDeploymentsSavedFiltersReturn {
 	return {
 		savedFilters,
 		saveFilter,
+		updateFilter,
 		deleteFilter,
 		findMatchingFilter,
 	};

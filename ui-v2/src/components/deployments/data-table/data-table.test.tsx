@@ -17,6 +17,10 @@ import {
 	createFakeFlowRun,
 	createFakeFlowRunWithDeploymentAndFlow,
 } from "@/mocks/create-fake-flow-run";
+import {
+	DEPLOYMENTS_SAVED_FILTERS_STORAGE_KEY,
+	type SavedDeploymentFilter,
+} from "../use-deployments-saved-filters";
 import { DeploymentsDataTable, type DeploymentsDataTableProps } from ".";
 
 describe("DeploymentsDataTable", () => {
@@ -583,5 +587,38 @@ describe("DeploymentsDataTable", () => {
 		expect(onColumnFiltersChange).toHaveBeenCalledWith([
 			{ id: "tags", value: ["tag3", "tag4"] },
 		]);
+	});
+
+	it("renders the presets bar above the filter inputs when presets exist", async () => {
+		const store = new Map<string, string>();
+		vi.spyOn(localStorage, "getItem").mockImplementation(
+			(key) => store.get(key) ?? null,
+		);
+		vi.spyOn(localStorage, "setItem").mockImplementation((key, value) => {
+			store.set(key, value);
+		});
+		localStorage.setItem(
+			DEPLOYMENTS_SAVED_FILTERS_STORAGE_KEY,
+			JSON.stringify([
+				{
+					id: "preset-1",
+					name: "Alpha Services",
+					filters: { tags: ["tag-alpha"] },
+				},
+			] satisfies SavedDeploymentFilter[]),
+		);
+
+		await waitFor(() =>
+			render(<DeploymentsDataTableRouter {...defaultProps} />, {
+				wrapper: createWrapper(),
+			}),
+		);
+
+		const presets = screen.getByText("Presets:");
+		const search = screen.getByPlaceholderText("Search deployments");
+		expect(
+			presets.compareDocumentPosition(search) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 	});
 });
