@@ -10,6 +10,7 @@
       </template>
 
       <template v-else>
+        <DeploymentsFilterPresetsBar />
         <DeploymentList @delete="deploymentsCountSubscription.refresh" />
       </template>
     </template>
@@ -20,6 +21,7 @@
   import { DeploymentList, PageHeadingDeployments, DeploymentsPageEmptyState, useWorkspaceApi } from '@prefecthq/prefect-ui-library'
   import { useSubscription } from '@prefecthq/vue-compositions'
   import { computed } from 'vue'
+  import DeploymentsFilterPresetsBar from '@/components/DeploymentsFilterPresetsBar.vue'
   import { usePageTitle } from '@/compositions/usePageTitle'
 
   const api = useWorkspaceApi()
