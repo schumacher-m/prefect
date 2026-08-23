@@ -129,4 +129,35 @@ describe("useDeploymentsSavedFilters", () => {
 		const noMatch = result.current.findMatchingFilter({ tags: ["tag-beta"] });
 		expect(noMatch).toBeUndefined();
 	});
+
+	it("updates an existing filter in place", () => {
+		const { result } = renderHook(() => useDeploymentsSavedFilters());
+
+		let created: SavedDeploymentFilter | undefined;
+		act(() => {
+			created = result.current.saveFilter({
+				name: "Alpha Group",
+				filters: { tags: ["tag-alpha"] },
+			});
+		});
+
+		expect(created).toBeDefined();
+
+		act(() => {
+			if (created) {
+				result.current.updateFilter(created.id, {
+					filters: { tags: ["tag-alpha", "tag-beta"], sort: "NAME_DESC" },
+				});
+			}
+		});
+
+		expect(result.current.savedFilters).toHaveLength(1);
+		expect(result.current.savedFilters[0].id).toBe(created?.id);
+		expect(result.current.savedFilters[0].name).toBe("Alpha Group");
+		expect(result.current.savedFilters[0].filters.tags).toEqual([
+			"tag-alpha",
+			"tag-beta",
+		]);
+		expect(result.current.savedFilters[0].filters.sort).toBe("NAME_DESC");
+	});
 });
