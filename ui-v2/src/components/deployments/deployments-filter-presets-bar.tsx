@@ -1,5 +1,5 @@
 import type { ColumnFiltersState } from "@tanstack/react-table";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { components } from "@/api/prefect";
 import { SaveFilterDialog } from "@/components/runs/save-filter-dialog";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { DeleteConfirmationDialog } from "@/components/ui/delete-confirmation-di
 import { Icon } from "@/components/ui/icons";
 import { cn } from "@/utils";
 import {
+	areDeploymentFiltersEqual,
 	type DeploymentSavedFilterValues,
 	type SavedDeploymentFilter,
 	useDeploymentsSavedFilters,
@@ -32,9 +33,15 @@ export const DeploymentsFilterPresetsBar = ({
 	const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
 	const [filterToDelete, setFilterToDelete] =
 		useState<SavedDeploymentFilter | null>(null);
+	const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
 
-	const { savedFilters, saveFilter, deleteFilter, findMatchingFilter } =
-		useDeploymentsSavedFilters();
+	const {
+		savedFilters,
+		saveFilter,
+		updateFilter,
+		deleteFilter,
+		findMatchingFilter,
+	} = useDeploymentsSavedFilters();
 
 	const flowOrDeploymentName = (columnFilters.find(
 		(filter) => filter.id === "flowOrDeploymentName",
@@ -53,7 +60,22 @@ export const DeploymentsFilterPresetsBar = ({
 		Boolean(flowOrDeploymentName.trim()) || tags.length > 0;
 	const isAllActive = !hasActiveFilters;
 
+	useEffect(() => {
+		if (matchingFilter) {
+			setSelectedPresetId(matchingFilter.id);
+		}
+	}, [matchingFilter]);
+
+	const selectedPreset = hasActiveFilters
+		? savedFilters.find((preset) => preset.id === selectedPresetId)
+		: undefined;
+	const isDirty = Boolean(
+		selectedPreset &&
+			!areDeploymentFiltersEqual(selectedPreset.filters, currentFilterValues),
+	);
+
 	const handleSelectAll = () => {
+		setSelectedPresetId(null);
 		if (onClearFilters) {
 			onClearFilters();
 		} else {
@@ -62,6 +84,7 @@ export const DeploymentsFilterPresetsBar = ({
 	};
 
 	const handleSelectPreset = (preset: SavedDeploymentFilter) => {
+		setSelectedPresetId(preset.id);
 		const newFilters: ColumnFiltersState = [];
 		if (preset.filters.flowOrDeploymentName) {
 			newFilters.push({
@@ -88,6 +111,20 @@ export const DeploymentsFilterPresetsBar = ({
 		});
 	};
 
+	const handleUpdate = () => {
+		if (!selectedPreset) {
+			return;
+		}
+		updateFilter(selectedPreset.id, { filters: currentFilterValues });
+	};
+
+	const hasPresets = savedFilters.length > 0;
+	const showSave = hasActiveFilters && !matchingFilter;
+
+	if (!hasPresets && !showSave) {
+		return null;
+	}
+
 	return (
 		<>
 			<div
@@ -96,26 +133,31 @@ export const DeploymentsFilterPresetsBar = ({
 					className,
 				)}
 			>
-				<span className="text-xs font-medium text-muted-foreground shrink-0 mr-1 flex items-center gap-1">
-					<Icon id="SlidersVertical" className="size-3" />
-					Presets:
-				</span>
+				{hasPresets && (
+					<>
+						<span className="text-xs font-medium text-muted-foreground shrink-0 mr-1 flex items-center gap-1">
+							<Icon id="SlidersVertical" className="size-3" />
+							Presets:
+						</span>
 
-				<Button
-					variant={isAllActive ? "secondary" : "ghost"}
-					size="sm"
-					className={cn(
-						"h-7 rounded-full px-3 text-xs font-medium shrink-0",
-						isAllActive &&
-							"bg-secondary text-secondary-foreground font-semibold shadow-xs",
-					)}
-					onClick={handleSelectAll}
-				>
-					All
-				</Button>
+						<Button
+							variant={isAllActive ? "secondary" : "ghost"}
+							size="sm"
+							className={cn(
+								"h-7 rounded-full px-3 text-xs font-medium shrink-0",
+								isAllActive &&
+									"bg-secondary text-secondary-foreground font-semibold shadow-xs",
+							)}
+							onClick={handleSelectAll}
+						>
+							All
+						</Button>
+					</>
+				)}
 
 				{savedFilters.map((preset) => {
-					const isActive = matchingFilter?.id === preset.id;
+					const isActive = selectedPreset?.id === preset.id;
+					const isDirtyPreset = isActive && isDirty;
 					return (
 						<div
 							key={preset.id}
@@ -131,7 +173,7 @@ export const DeploymentsFilterPresetsBar = ({
 								className="px-3 py-1 text-xs focus:outline-hidden cursor-pointer"
 								onClick={() => handleSelectPreset(preset)}
 							>
-								{preset.name}
+								{isDirtyPreset ? `${preset.name} •` : preset.name}
 							</button>
 							<button
 								type="button"
@@ -147,6 +189,17 @@ export const DeploymentsFilterPresetsBar = ({
 						</div>
 					);
 				})}
+
+				{isDirty && (
+					<Button
+						variant="secondary"
+						size="sm"
+						className="h-7 rounded-full px-2.5 text-xs font-medium shrink-0"
+						onClick={handleUpdate}
+					>
+						Update
+					</Button>
+				)}
 
 				{hasActiveFilters && !matchingFilter && (
 					<Button
