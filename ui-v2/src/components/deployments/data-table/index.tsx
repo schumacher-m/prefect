@@ -5,10 +5,16 @@ import type {
 	OnChangeFn,
 	PaginationState,
 } from "@tanstack/react-table";
+import { LayoutGrid, Rows3 } from "lucide-react";
 import { useCallback } from "react";
 import type { DeploymentWithFlow } from "@/api/deployments";
 import type { components } from "@/api/prefect";
 import { DeploymentTagsSelect } from "@/components/deployments/deployment-tags-select";
+import {
+	DEPLOYMENTS_SLOT_SIZE_STORAGE_KEY,
+	DEPLOYMENTS_VIEW_STORAGE_KEY,
+	DeploymentsIndexGrid,
+} from "@/components/deployments/index-grid/deployments-index-grid";
 import { useDeleteDeploymentConfirmationDialog } from "@/components/deployments/use-delete-deployment-confirmation-dialog";
 import { FlowIconText } from "@/components/flows/flow-icon-text";
 import { Button } from "@/components/ui/button";
@@ -33,10 +39,13 @@ import {
 } from "@/components/ui/select";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TagBadgeGroup } from "@/components/ui/tag-badge-group";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import { createColumnHelper, useTable } from "@/lib/tanstack-table";
 import { pluralize } from "@/utils";
 import { ActionsCell, ActivityCell } from "./cells";
+
+export type DeploymentsView = "list" | "grid";
 
 export type DeploymentsDataTableProps = {
 	deployments: DeploymentWithFlow[];
@@ -52,6 +61,8 @@ export type DeploymentsDataTableProps = {
 	isPending?: boolean;
 	isPlaceholderData?: boolean;
 	onClearFilters?: () => void;
+	view?: DeploymentsView;
+	onViewChange?: (view: DeploymentsView) => void;
 };
 
 const columnHelper = createColumnHelper<DeploymentWithFlow>();
@@ -160,6 +171,8 @@ export const DeploymentsDataTable = ({
 	isPending = false,
 	isPlaceholderData = false,
 	onClearFilters,
+	view: viewProp,
+	onViewChange,
 }: DeploymentsDataTableProps) => {
 	const filteredCount = filteredCountProp ?? deployments.length;
 	const showFilteredEmptyState =
@@ -212,6 +225,21 @@ export const DeploymentsDataTable = ({
 		COLUMN_SIZING_STORAGE_KEY,
 		{},
 	);
+	const [storedView, setStoredView] = useLocalStorage<DeploymentsView>(
+		DEPLOYMENTS_VIEW_STORAGE_KEY,
+		"list",
+	);
+	const [slotSize, setSlotSize] = useLocalStorage<number>(
+		DEPLOYMENTS_SLOT_SIZE_STORAGE_KEY,
+		5,
+	);
+	const view = viewProp ?? storedView;
+	const handleViewChange = (next: string) => {
+		if (next !== "list" && next !== "grid") {
+			return;
+		}
+		(onViewChange ?? setStoredView)(next);
+	};
 
 	const handleColumnSizingChange: OnChangeFn<ColumnSizingState> = useCallback(
 		(updater) => {
@@ -245,6 +273,39 @@ export const DeploymentsDataTable = ({
 	});
 	return (
 		<div>
+			<div className="flex justify-end gap-2 pb-2">
+				{view === "grid" ? (
+					<Select
+						value={String(slotSize)}
+						onValueChange={(value) => setSlotSize(Number(value))}
+					>
+						<SelectTrigger aria-label="Slot grid size" className="w-24">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{[3, 4, 5, 6, 7, 8].map((value) => (
+								<SelectItem key={value} value={String(value)}>
+									{value}×{value}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				) : null}
+				<ToggleGroup
+					type="single"
+					variant="outline"
+					size="sm"
+					value={view}
+					onValueChange={handleViewChange}
+				>
+					<ToggleGroupItem value="list" aria-label="List view">
+						<Rows3 className="w-4 h-4" />
+					</ToggleGroupItem>
+					<ToggleGroupItem value="grid" aria-label="Grid view">
+						<LayoutGrid className="w-4 h-4" />
+					</ToggleGroupItem>
+				</ToggleGroup>
+			</div>
 			<div className="grid sm:grid-cols-2 md:grid-cols-12 gap-2 pb-4 items-center">
 				<div className="sm:col-span-2 md:col-span-3 lg:col-span-4 md:order-first lg:order-first">
 					<p className="text-sm text-muted-foreground">
@@ -286,6 +347,8 @@ export const DeploymentsDataTable = ({
 			<DeleteConfirmationDialog {...deleteConfirmationDialogState} />
 			{showFilteredEmptyState ? (
 				<DeploymentsFilteredEmptyState onClearFilters={onClearFilters} />
+			) : view === "grid" ? (
+				<DeploymentsIndexGrid deployments={deployments} size={slotSize} />
 			) : (
 				<FlowRunActivityBarGraphTooltipProvider>
 					<DataTable

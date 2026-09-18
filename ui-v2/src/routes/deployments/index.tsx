@@ -18,6 +18,7 @@ import type { components } from "@/api/prefect";
 import { DeploymentsDataTable } from "@/components/deployments/data-table";
 import { DeploymentsEmptyState } from "@/components/deployments/empty-state";
 import { DeploymentsPageHeader } from "@/components/deployments/header";
+import { DEPLOYMENTS_GRID_PAGE_SIZE } from "@/components/deployments/index-grid/deployments-index-grid";
 import { PrefectLoading } from "@/components/ui/loading";
 import { RouteErrorState } from "@/components/ui/route-error-state";
 import { usePageSizePreference } from "@/hooks/use-page-size-preference";
@@ -37,6 +38,7 @@ const searchParams = z.object({
 		.catch("NAME_ASC"),
 	flowOrDeploymentName: z.string().optional().catch(""),
 	tags: z.array(z.string()).optional().catch([]),
+	view: z.enum(["list", "grid"]).optional().default("list").catch("list"),
 });
 
 /**
@@ -54,8 +56,11 @@ const searchParams = z.object({
 const buildPaginationBody = (
 	search?: z.infer<typeof searchParams>,
 ): DeploymentsPaginationFilter => ({
-	page: search?.page ?? 1,
-	limit: search?.limit ?? 10,
+	page: search?.view === "grid" ? 1 : (search?.page ?? 1),
+	limit:
+		search?.view === "grid"
+			? DEPLOYMENTS_GRID_PAGE_SIZE
+			: (search?.limit ?? 10),
 	sort: search?.sort ?? "NAME_ASC",
 	deployments: {
 		operator: "and_",
@@ -167,6 +172,18 @@ export const Route = createFileRoute("/deployments/")({
 						onSortChange={onSortChange}
 						onColumnFiltersChange={onColumnFiltersChange}
 						onClearFilters={onClearFilters}
+						view={search.view}
+						onViewChange={(view) => {
+							void navigate({
+								to: ".",
+								search: (prev) => ({
+									...prev,
+									view,
+									page: view === "grid" ? 1 : prev.page,
+								}),
+								replace: true,
+							});
+						}}
 					/>
 				)}
 			</div>

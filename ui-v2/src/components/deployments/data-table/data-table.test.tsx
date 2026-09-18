@@ -627,4 +627,19 @@ describe("DeploymentsDataTable", () => {
 			{ id: "tags", value: ["tag3", "tag4"] },
 		]);
 	});
+
+	it("switches to grid view", async () => {
+		await waitFor(() =>
+			render(<DeploymentsDataTableRouter {...defaultProps} />, {
+				wrapper: createWrapper(),
+			}),
+		);
+
+		fireEvent.click(await screen.findByLabelText(/Grid view/i));
+
+		expect(
+			await screen.findByTestId("deployments-index-grid"),
+		).toBeInTheDocument();
+		expect(screen.queryByText("Activity")).not.toBeInTheDocument();
+	});
 });
