@@ -1,5 +1,5 @@
 import type { ColumnFiltersState } from "@tanstack/react-table";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { components } from "@/api/prefect";
 import { SaveFilterDialog } from "@/components/runs/save-filter-dialog";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,10 @@ export const DeploymentsFilterPresetsBar = ({
 	const [filterToDelete, setFilterToDelete] =
 		useState<SavedDeploymentFilter | null>(null);
 	const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+	const [renamingId, setRenamingId] = useState<string | null>(null);
+	const [draftName, setDraftName] = useState("");
+	const ignoreRenameBlurRef = useRef(false);
+	const renameInputRef = useRef<HTMLInputElement>(null);
 
 	const {
 		savedFilters,
@@ -65,6 +69,14 @@ export const DeploymentsFilterPresetsBar = ({
 			setSelectedPresetId(matchingFilter.id);
 		}
 	}, [matchingFilter]);
+
+	useEffect(() => {
+		if (!renamingId) {
+			return;
+		}
+		renameInputRef.current?.focus();
+		renameInputRef.current?.select();
+	}, [renamingId]);
 
 	const selectedPreset = hasActiveFilters
 		? savedFilters.find((preset) => preset.id === selectedPresetId)
@@ -118,6 +130,29 @@ export const DeploymentsFilterPresetsBar = ({
 		updateFilter(selectedPreset.id, { filters: currentFilterValues });
 	};
 
+	const startRename = (preset: SavedDeploymentFilter) => {
+		ignoreRenameBlurRef.current = false;
+		setRenamingId(preset.id);
+		setDraftName(preset.name);
+	};
+
+	const cancelRename = () => {
+		setRenamingId(null);
+		setDraftName("");
+	};
+
+	const commitRename = (preset: SavedDeploymentFilter) => {
+		if (ignoreRenameBlurRef.current) {
+			ignoreRenameBlurRef.current = false;
+			return;
+		}
+		const name = draftName.trim();
+		if (name && name !== preset.name) {
+			updateFilter(preset.id, { name });
+		}
+		cancelRename();
+	};
+
 	const hasPresets = savedFilters.length > 0;
 	const showSave = hasActiveFilters && !matchingFilter;
 
@@ -158,34 +193,74 @@ export const DeploymentsFilterPresetsBar = ({
 				{savedFilters.map((preset) => {
 					const isActive = selectedPreset?.id === preset.id;
 					const isDirtyPreset = isActive && isDirty;
+					const isRenaming = renamingId === preset.id;
 					return (
 						<div
 							key={preset.id}
 							className={cn(
-								"inline-flex items-center rounded-full border border-border text-xs transition-colors shrink-0",
+								"group inline-flex items-center rounded-full border border-border text-xs transition-colors shrink-0",
 								isActive
 									? "bg-secondary text-secondary-foreground font-semibold border-secondary-foreground/20 shadow-xs"
 									: "bg-background text-muted-foreground hover:bg-muted hover:text-foreground",
 							)}
 						>
-							<button
-								type="button"
-								className="px-3 py-1 text-xs focus:outline-hidden cursor-pointer"
-								onClick={() => handleSelectPreset(preset)}
-							>
-								{isDirtyPreset ? `${preset.name} •` : preset.name}
-							</button>
-							<button
-								type="button"
-								aria-label={`Delete preset ${preset.name}`}
-								className="pr-2 pl-0.5 py-1 text-muted-foreground/60 hover:text-destructive focus:outline-hidden cursor-pointer"
-								onClick={(e) => {
-									e.stopPropagation();
-									setFilterToDelete(preset);
-								}}
-							>
-								<Icon id="X" className="size-3" />
-							</button>
+							{isRenaming ? (
+								<input
+									ref={renameInputRef}
+									aria-label={`Rename preset ${preset.name}`}
+									autoComplete="off"
+									className="h-7 min-w-24 rounded-full bg-transparent px-3 text-xs outline-none"
+									maxLength={100}
+									size={Math.max(draftName.length, 8)}
+									value={draftName}
+									onBlur={() => commitRename(preset)}
+									onChange={(event) => setDraftName(event.target.value)}
+									onClick={(event) => event.stopPropagation()}
+									onKeyDown={(event) => {
+										if (event.key === "Enter") {
+											event.preventDefault();
+											commitRename(preset);
+										}
+										if (event.key === "Escape") {
+											event.preventDefault();
+											ignoreRenameBlurRef.current = true;
+											cancelRename();
+										}
+									}}
+								/>
+							) : (
+								<>
+									<button
+										type="button"
+										className="px-3 py-1 text-xs focus:outline-hidden cursor-pointer"
+										onClick={() => handleSelectPreset(preset)}
+									>
+										{isDirtyPreset ? `${preset.name} •` : preset.name}
+									</button>
+									<button
+										type="button"
+										aria-label={`Rename preset ${preset.name}`}
+										className="inline-flex items-center justify-center overflow-hidden w-0 p-0 opacity-0 text-muted-foreground/60 hover:text-foreground focus:outline-hidden cursor-pointer group-hover:w-4 group-hover:opacity-100 focus-visible:w-4 focus-visible:opacity-100 [@media(hover:none)]:w-4 [@media(hover:none)]:opacity-100"
+										onClick={(event) => {
+											event.stopPropagation();
+											startRename(preset);
+										}}
+									>
+										<Icon id="Pencil" className="size-3" />
+									</button>
+									<button
+										type="button"
+										aria-label={`Delete preset ${preset.name}`}
+										className="pr-2 pl-0.5 py-1 text-muted-foreground/60 hover:text-destructive focus:outline-hidden cursor-pointer"
+										onClick={(event) => {
+											event.stopPropagation();
+											setFilterToDelete(preset);
+										}}
+									>
+										<Icon id="X" className="size-3" />
+									</button>
+								</>
+							)}
 						</div>
 					);
 				})}

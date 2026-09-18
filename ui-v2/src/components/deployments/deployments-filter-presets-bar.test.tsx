@@ -337,4 +337,130 @@ describe("DeploymentsFilterPresetsBar", () => {
 		]);
 		expect(onSortChange).toHaveBeenCalledWith("NAME_ASC");
 	});
+
+	const seedPreset = (
+		store: Map<string, string>,
+		preset: SavedDeploymentFilter = {
+			id: "preset-1",
+			name: "Alpha Services",
+			filters: {
+				flowOrDeploymentName: "alpha",
+				tags: ["tag-alpha"],
+				sort: "NAME_ASC",
+			},
+		},
+	) => {
+		store.set(DEPLOYMENTS_SAVED_FILTERS_STORAGE_KEY, JSON.stringify([preset]));
+	};
+
+	it("renames a preset inline without applying its filters", async () => {
+		const store = installLocalStorageBacking();
+		const user = userEvent.setup();
+		const onColumnFiltersChange = vi.fn();
+		const onSortChange = vi.fn();
+		seedPreset(store);
+
+		render(
+			<DeploymentsFilterPresetsBar
+				{...defaultProps}
+				onColumnFiltersChange={onColumnFiltersChange}
+				onSortChange={onSortChange}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Rename preset Alpha Services" }),
+		);
+
+		expect(onColumnFiltersChange).not.toHaveBeenCalled();
+		expect(onSortChange).not.toHaveBeenCalled();
+
+		const nameInput = screen.getByRole("textbox", {
+			name: "Rename preset Alpha Services",
+		});
+		expect(nameInput).toHaveValue("Alpha Services");
+
+		await user.clear(nameInput);
+		await user.type(nameInput, "Prod failures");
+		await user.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(screen.getByText("Prod failures")).toBeInTheDocument();
+		});
+		expect(
+			screen.queryByRole("textbox", { name: /Rename preset/ }),
+		).not.toBeInTheDocument();
+		expect(onColumnFiltersChange).not.toHaveBeenCalled();
+
+		const stored = JSON.parse(
+			store.get(DEPLOYMENTS_SAVED_FILTERS_STORAGE_KEY) ?? "[]",
+		) as SavedDeploymentFilter[];
+		expect(stored[0]?.name).toBe("Prod failures");
+		expect(stored[0]?.filters.tags).toEqual(["tag-alpha"]);
+	});
+
+	it("cancels rename on Escape and rejects an empty name", async () => {
+		const store = installLocalStorageBacking();
+		const user = userEvent.setup();
+		seedPreset(store);
+
+		render(<DeploymentsFilterPresetsBar {...defaultProps} />);
+
+		await user.click(
+			screen.getByRole("button", { name: "Rename preset Alpha Services" }),
+		);
+		const nameInput = screen.getByRole("textbox", {
+			name: "Rename preset Alpha Services",
+		});
+
+		await user.clear(nameInput);
+		await user.type(nameInput, "Temporary");
+		await user.keyboard("{Escape}");
+
+		expect(screen.getByText("Alpha Services")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("textbox", { name: /Rename preset/ }),
+		).not.toBeInTheDocument();
+
+		await user.click(
+			screen.getByRole("button", { name: "Rename preset Alpha Services" }),
+		);
+		const emptyInput = screen.getByRole("textbox", {
+			name: "Rename preset Alpha Services",
+		});
+		await user.clear(emptyInput);
+		await user.keyboard("{Enter}");
+
+		expect(screen.getByText("Alpha Services")).toBeInTheDocument();
+		const stored = JSON.parse(
+			store.get(DEPLOYMENTS_SAVED_FILTERS_STORAGE_KEY) ?? "[]",
+		) as SavedDeploymentFilter[];
+		expect(stored[0]?.name).toBe("Alpha Services");
+	});
+
+	it("commits rename on blur", async () => {
+		const store = installLocalStorageBacking();
+		const user = userEvent.setup();
+		seedPreset(store);
+
+		render(<DeploymentsFilterPresetsBar {...defaultProps} />);
+
+		await user.click(
+			screen.getByRole("button", { name: "Rename preset Alpha Services" }),
+		);
+		const nameInput = screen.getByRole("textbox", {
+			name: "Rename preset Alpha Services",
+		});
+		await user.clear(nameInput);
+		await user.type(nameInput, "Nightly");
+		await user.tab();
+
+		await waitFor(() => {
+			expect(screen.getByText("Nightly")).toBeInTheDocument();
+		});
+		const stored = JSON.parse(
+			store.get(DEPLOYMENTS_SAVED_FILTERS_STORAGE_KEY) ?? "[]",
+		) as SavedDeploymentFilter[];
+		expect(stored[0]?.name).toBe("Nightly");
+	});
 });

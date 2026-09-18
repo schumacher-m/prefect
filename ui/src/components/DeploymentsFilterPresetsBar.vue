@@ -20,17 +20,40 @@
         class="deployments-filter-presets-bar__preset"
         :class="{ 'deployments-filter-presets-bar__preset--active': selectedPreset?.id === preset.id }"
       >
-        <button type="button" class="deployments-filter-presets-bar__preset-name" @click="selectPreset(preset)">
-          {{ selectedPreset?.id === preset.id && isDirty ? `${preset.name} •` : preset.name }}
-        </button>
-        <button
-          type="button"
-          class="deployments-filter-presets-bar__preset-delete"
-          :aria-label="`Delete preset ${preset.name}`"
-          @click.stop="filterToDelete = preset"
+        <input
+          v-if="renamingId === preset.id"
+          :aria-label="`Rename preset ${preset.name}`"
+          class="deployments-filter-presets-bar__preset-input"
+          maxlength="100"
+          :size="Math.max(draftName.length, 8)"
+          :value="draftName"
+          @blur="commitRename(preset)"
+          @click.stop
+          @input="onDraftInput"
+          @keydown.enter.prevent="commitRename(preset)"
+          @keydown.escape.prevent="cancelRename"
         >
-          ×
-        </button>
+        <template v-else>
+          <button type="button" class="deployments-filter-presets-bar__preset-name" @click="selectPreset(preset)">
+            {{ selectedPreset?.id === preset.id && isDirty ? `${preset.name} •` : preset.name }}
+          </button>
+          <button
+            type="button"
+            class="deployments-filter-presets-bar__preset-rename"
+            :aria-label="`Rename preset ${preset.name}`"
+            @click.stop="startRename(preset)"
+          >
+            ✎
+          </button>
+          <button
+            type="button"
+            class="deployments-filter-presets-bar__preset-delete"
+            :aria-label="`Delete preset ${preset.name}`"
+            @click.stop="filterToDelete = preset"
+          >
+            ×
+          </button>
+        </template>
       </div>
     </template>
 
@@ -70,7 +93,7 @@
 
 <script lang="ts" setup>
   import { useDeploymentsPaginationFilterFromRoute } from '@prefecthq/prefect-ui-library'
-  import { computed, ref, watch } from 'vue'
+  import { computed, nextTick, ref, watch } from 'vue'
   import {
     areDeploymentFiltersEqual,
     type DeploymentSavedFilterValues,
@@ -85,6 +108,9 @@
   const showSaveModal = ref(false)
   const newFilterName = ref('')
   const filterToDelete = ref<SavedDeploymentFilter | null>(null)
+  const renamingId = ref<string | null>(null)
+  const draftName = ref('')
+  let ignoreRenameBlur = false
 
   const currentFilterValues = computed<DeploymentSavedFilterValues>(() => {
     const tags = filter.deployments.tags.name
@@ -162,6 +188,42 @@
     updateFilter(selectedPreset.value.id, { filters: currentFilterValues.value })
   }
 
+  function startRename(preset: SavedDeploymentFilter): void {
+    ignoreRenameBlur = false
+    renamingId.value = preset.id
+    draftName.value = preset.name
+    void nextTick(() => {
+      const input = document.querySelector(
+        ".deployments-filter-presets-bar__preset-input",
+      ) as HTMLInputElement | null
+      input?.focus()
+      input?.select()
+    })
+  }
+
+  function onDraftInput(event: Event): void {
+    draftName.value = (event.target as HTMLInputElement).value
+  }
+
+  function cancelRename(): void {
+    ignoreRenameBlur = true
+    renamingId.value = null
+    draftName.value = ''
+  }
+
+  function commitRename(preset: SavedDeploymentFilter): void {
+    if (ignoreRenameBlur) {
+      ignoreRenameBlur = false
+      return
+    }
+    const name = draftName.value.trim()
+    if (name && name !== preset.name) {
+      updateFilter(preset.id, { name })
+    }
+    renamingId.value = null
+    draftName.value = ''
+  }
+
   function saveCurrent(): void {
     const name = newFilterName.value.trim()
     if (!name) {
@@ -228,6 +290,41 @@
   py-1
   text-xs
   cursor-pointer
+}
+
+.deployments-filter-presets-bar__preset-rename { @apply
+  inline-flex
+  items-center
+  justify-center
+  overflow-hidden
+  w-0
+  p-0
+  text-subdued
+  cursor-pointer
+  opacity-0
+}
+
+.deployments-filter-presets-bar__preset:hover .deployments-filter-presets-bar__preset-rename,
+.deployments-filter-presets-bar__preset-rename:focus-visible { @apply
+  w-4
+  opacity-100
+}
+
+@media (hover: none) {
+  .deployments-filter-presets-bar__preset-rename { @apply
+    w-4
+    opacity-100
+  }
+}
+
+.deployments-filter-presets-bar__preset-input { @apply
+  h-7
+  min-w-24
+  rounded-full
+  bg-transparent
+  px-3
+  text-xs
+  outline-none
 }
 
 .deployments-filter-presets-bar__preset-delete { @apply
